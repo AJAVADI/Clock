@@ -12,11 +12,14 @@ def draw_progress(display, progress_ratio):
     if not display:
         return
     display.fill(0)
-    display.text("OTA", 20, 0, 1)
+    # رسم کلمه OTA با یک پیکسل شیفت به بالا تا ردیف 7 باز بماند
+    display.text("OTA", 20, -1, 1)
     
     max_w = getattr(display, 'width', 64)
-    bar_w = int(max_w * progress_ratio)
+    # حداقل یک پیکسل یا به اندازه نسبت دانلود
+    bar_w = int(max_w * max(0.0, min(1.0, progress_ratio)))
     
+    # رسم نوار پیشرفت روی ردیف 7 (خط کف)
     for x in range(bar_w):
         display.pixel(x, 7, 1)
     display.show()
@@ -53,11 +56,9 @@ def check_and_update(cfg, display=None):
 
     print("New version found: {}. Starting update...".format(remote_version))
 
-    # 2. دانلود استریمی فایل‌ها تکه‌تکه (جلوگیری از پر شدن رم و قفل سوکت)
+    # 2. دانلود استریمی فایل‌ها تکه‌تکه و رسم پیشرفت بر اساس حجم دریافت شده
     total_files = len(files_to_update)
     for idx, filename in enumerate(files_to_update):
-        draw_progress(display, idx / total_files)
-        
         file_url = GITHUB_RAW_BASE + filename
         tmp_filename = filename + ".tmp"
         
@@ -67,12 +68,24 @@ def check_and_update(cfg, display=None):
             gc.collect()
             res = urequests.get(file_url, headers=HEADERS)
             if res.status_code == 200:
+                # خواندن طول فایل از هدر سرور در صورت وجود
+                content_len_hdr = res.headers.get("Content-Length")
+                total_len = int(content_len_hdr) if content_len_hdr else 4096
+                downloaded = 0
+                
                 with open(tmp_filename, "wb") as f:
                     while True:
-                        chunk = res.raw.read(512)
+                        chunk = res.raw.read(256)
                         if not chunk:
                             break
                         f.write(chunk)
+                        downloaded += len(chunk)
+                        
+                        # محاسبه نسبت کل پیشرفت با احتساب تعداد کل فایل‌ها
+                        file_progress = downloaded / total_len
+                        overall_progress = (idx + min(1.0, file_progress)) / total_files
+                        draw_progress(display, overall_progress)
+                        
                 res.close()
             else:
                 print("Failed to download {}, HTTP {}".format(filename, res.status_code))
@@ -106,4 +119,3 @@ def check_and_update(cfg, display=None):
         display.show()
     
     machine.reset()
-

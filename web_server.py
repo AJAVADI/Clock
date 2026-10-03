@@ -112,7 +112,7 @@ def start_ap_portal(cfg, display=None):
     sta.active(False)
     time.sleep(.5)
 
-    print('AP Mode Started:Ai Clock (Open) - IP: 192.168.4.1')
+    print('AP Mode Started: Clock (Open) - IP: 192.168.4.1')
 
     s = socket.socket()
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
