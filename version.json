@@ -1,10 +1,6 @@
 {
   "version": 1.1,
   "files": [
-    "main.py",
-    "network_time.py",
-    "web_server.py",
-    "api_data.py",
-    "fc16.py"
+    "test_ota.py"
   ]
 }
