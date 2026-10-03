@@ -7,6 +7,8 @@ from api_data import fetch_weather, fetch_usdt, fetch_gold, fetch_btc, fetch_oil
 import web_server
 import ota
 
+print(">>> UPDATE SUCCESSFUL! V1.2 RUNNING <<<")
+
 cfg = load_config()
 
 spi = SPI(cfg['spi_id'], baudrate=cfg['spi_baudrate'], polarity=0, phase=0,
