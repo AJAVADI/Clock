@@ -1,7 +1,47 @@
 import network, socket, time, machine
 from config import save_config
 
-# تابع unquote برای دیکُد کردن پارامترهای URL-encoded
+# لیست ۳۳ قلم برای فرم وب‌سرور (کلید کانفیگ، کلید ورکر، نام فارسی)
+MARKET_FIELDS = [
+    # طلا و سکه
+    ("m_geram18", "geram18", "طلای ۱۸ عیار"),
+    ("m_abshodeh", "abshodeh", "آبشده طلا"),
+    ("m_emami", "emami", "سکه امامی"),
+    ("m_ons", "ons", "انس جهانی طلا"),
+    # رمزارزها
+    ("m_usdt", "usdt", "تتر (USDT)"),
+    ("m_btc", "btc", "بیت‌کوین (BTC)"),
+    ("m_eth", "eth", "اتریوم (ETH)"),
+    ("m_bnb", "bnb", "بایننس کوین (BNB)"),
+    ("m_sol", "sol", "سولانا (SOL)"), # در صورت نیاز
+    ("m_doge", "doge", "دوج‌کوین (DOGE)"),
+    ("m_shib", "shib", "شیبا (SHIB)"),
+    ("m_ton", "ton", "تون‌کوین (TON)"),
+    ("m_not", "not", "نات‌کوین (NOT)"),
+    ("m_xrp", "xrp", "ریپل (XRP)"),
+    # ارزهای پرکاربرد و فیات
+    ("m_usd_sell", "usd_sell", "دلار آزاد (تهران)"),
+    ("m_usd_ist", "usd_ist", "دلار استانبول"),
+    ("m_eur", "eur", "یورو"),
+    ("m_aed", "aed", "درهم امارات"),
+    ("m_try", "try", "لیر ترکیه"),
+    ("m_gbp", "gbp", "پوند انگلیس"),
+    ("m_cny", "cny", "یوان چین"),
+    ("m_cad", "cad", "دلار کانادا"),
+    ("m_aud", "aud", "دلار استرالیا"),
+    ("m_rub", "rub", "روبل روسیه"),
+    ("m_iqd", "iqd", "دینار عراق"),
+    ("m_myr", "myr", "رینگیت مالزی"),
+    ("m_gel", "gel", "لاری گرجستان"),
+    ("m_azn", "azn", "منات آذربایجان"),
+    ("m_amd", "amd", "درام ارمنستان"),
+    ("m_thb", "thb", "بات تایلند"),
+    ("m_omr", "omr", "ریال عمان"),
+    ("m_inr", "inr", "روپیه هند"),
+    ("m_jpy", "jpy", "ین ژاپن"),
+    ("m_afn", "afn", "افغانی افغانستان"),
+]
+
 def unquote(string):
     res = string.replace('+', ' ')
     parts = res.split('%')
@@ -18,7 +58,6 @@ def unquote(string):
             output += '%' + part
     return output
 
-# تابع parse_form_data برای تبدیل داده‌های فرم به دیکشنری
 def parse_form_data(body):
     data = {}
     for pair in body.split('&'):
@@ -27,39 +66,51 @@ def parse_form_data(body):
             data[unquote(k)] = unquote(v)
     return data
 
-# تابع render_html برای ساخت صفحه تنظیمات
 def render_html(cfg):
     checked = lambda val: 'checked' if val else ''
-    return f'''<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Clock Settings</title>
+    
+    # ساخت ردیف چک‌باکس‌های بازار
+    market_items_html = ""
+    for cfg_key, _, label in MARKET_FIELDS:
+        market_items_html += f'''
+        <div class="check-group">
+            <label for="{cfg_key}">{label}</label>
+            <input type="checkbox" id="{cfg_key}" name="{cfg_key}" {checked(cfg.get(cfg_key, False))}>
+        </div>'''
+
+    return f'''<!DOCTYPE html><html lang="fa" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>تنظیمات ساعت هوشمند</title>
 <style>
     * {{box-sizing:border-box;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}}
     body {{background:#0f172a;color:#f8fafc;margin:0;padding:20px}}
-    .card {{background:#1e293b;max-width:440px;margin:0 auto;padding:24px;border-radius:14px;box-shadow:0 10px 25px rgba(0,0,0,.5)}}
+    .card {{background:#1e293b;max-width:480px;margin:0 auto;padding:22px;border-radius:14px;box-shadow:0 10px 25px rgba(0,0,0,.5)}}
     h2 {{margin-top:0;text-align:center;color:#38bdf8;font-size:22px}}
-    .group {{margin-bottom:18px}}
-    label {{display:block;margin-bottom:6px;font-weight:600;font-size:14px}}
-    input[type="text"],input[type="password"],input[type="number"] {{width:100%;padding:10px 12px;background:#334155;border:1px solid #475569;border-radius:8px;color:#fff;font-size:15px;outline:none}}
+    .section-title {{margin-top:18px;margin-bottom:8px;font-weight:bold;color:#38bdf8;font-size:15px;border-bottom:1px solid #334155;padding-bottom:4px}}
+    .group {{margin-bottom:14px}}
+    label {{display:block;margin-bottom:6px;font-weight:600;font-size:13px}}
+    input[type="text"],input[type="password"],input[type="number"] {{width:100%;padding:9px 12px;background:#334155;border:1px solid #475569;border-radius:8px;color:#fff;font-size:14px;outline:none}}
     input:focus {{border-color:#38bdf8}}
-    .check-group {{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #334155}}
-    .check-group label {{margin-bottom:0;cursor:pointer}}
-    input[type="checkbox"] {{transform:scale(1.3);cursor:pointer;accent-color:#38bdf8}}
-    .btn {{width:100%;padding:12px;background:#0284c7;border:0;border-radius:8px;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;margin-top:18px}}
+    .check-group {{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #283548}}
+    .check-group label {{margin-bottom:0;cursor:pointer;font-weight:normal}}
+    input[type="checkbox"] {{transform:scale(1.25);cursor:pointer;accent-color:#38bdf8}}
+    .btn {{width:100%;padding:12px;background:#0284c7;border:0;border-radius:8px;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;margin-top:20px}}
     .desc {{font-size:12px;color:#94a3b8;text-align:center;margin-top:12px}}
 </style></head><body><div class="card"><h2>تنظیمات ساعت هوشمند</h2><form method="POST" action="/save">
 <div class="group"><label>نام وای‌فای (SSID):</label><input type="text" name="wifi_ssid" value="{cfg.get('wifi_ssid','')}" required dir="ltr"></div>
 <div class="group"><label>رمز وای‌فای (Password):</label><input type="password" name="wifi_pass" value="{cfg.get('wifi_pass','')}" dir="ltr"></div>
 <div class="group"><label>شدت نور ماتریس (0 تا 15):</label><input type="number" name="brightness" min="0" max="15" value="{cfg.get('brightness',2)}"></div>
 <div class="group"><label>بازه بروزرسانی داده‌ها (ثانیه):</label><input type="number" name="fetch_interval" min="30" max="3600" value="{cfg.get('fetch_interval',120)}"></div>
-<div style="margin-top:15px;margin-bottom:5px;font-weight:bold;color:#38bdf8">نمایش بخش‌ها:</div>
-<div class="check-group"><label for="show_date">تاریخ شمسی</label><input type="checkbox" id="show_date" name="show_date" {checked(cfg.get('show_date',True))}></div>
-<div class="check-group"><label for="show_usdt">قیمت تتر (USDT)</label><input type="checkbox" id="show_usdt" name="show_usdt" {checked(cfg.get('show_usdt',True))}></div>
-<div class="check-group"><label for="show_gold">طلای ۱۸ عیار (GOLD)</label><input type="checkbox" id="show_gold" name="show_gold" {checked(cfg.get('show_gold',True))}></div>
-<div class="check-group"><label for="show_btc">بیت‌کوین (BTC)</label><input type="checkbox" id="show_btc" name="show_btc" {checked(cfg.get('show_btc',True))}></div>
-<div class="check-group"><label for="show_oil">نفت (OIL)</label><input type="checkbox" id="show_oil" name="show_oil" {checked(cfg.get('show_oil',True))}></div>
-<div class="check-group"><label for="show_weather">دمای هوای تهران</label><input type="checkbox" id="show_weather" name="show_weather" {checked(cfg.get('show_weather',True))}></div>
-<button type="submit" class="btn">ذخیره و راه‌اندازی مجدد</button><div class="desc">پس از ذخیره، برد ریستارت شده و به شبکه وصل می‌شود.</div></form></div></body></html>'''
 
-# تابع draw_compact_ip برای رسم IP فشرده روی نمایشگر
+<div class="section-title">اطلاعات عمومی:</div>
+<div class="check-group"><label for="show_date">تاریخ شمسی</label><input type="checkbox" id="show_date" name="show_date" {checked(cfg.get('show_date',True))}></div>
+<div class="check-group"><label for="show_weather">دمای هوای تهران</label><input type="checkbox" id="show_weather" name="show_weather" {checked(cfg.get('show_weather',True))}></div>
+<div class="check-group"><label for="show_oil">قیمت جهانی نفت (OIL)</label><input type="checkbox" id="show_oil" name="show_oil" {checked(cfg.get('show_oil',True))}></div>
+
+<div class="section-title">اقلام بازارهای مالی (چرخشی روی ماتریس):</div>
+{market_items_html}
+
+<button type="submit" class="btn">ذخیره و راه‌اندازی مجدد</button>
+<div class="desc">پس از ذخیره، برد ریستارت شده و تنظیمات اعمال می‌گردد.</div></form></div></body></html>'''
+
 def draw_compact_ip(display, ip_str):
     display.fill(0)
     FONT_3x7 = {
@@ -93,15 +144,11 @@ def draw_compact_ip(display, ip_str):
             x += 4
     display.show()
 
-# تابع start_ap_portal برای مدیریت حالت Access Point
-# تابع start_ap_portal برای مدیریت حالت Access Point
 def start_ap_portal(cfg, display=None):
     ssid = 'Ai Clock'
-    
-    # ۱. بلافاصله صفحه پاک شود و Clock وسط صفحه نمایش داده شود
     if display:
         display.fill(0)
-        display.text(ssid, 0, 0, 1)  # 12 برای وسط‌چین شدن کلمه Clock
+        display.text(ssid, 0, 0, 1)
         display.show()
 
     ap = network.WLAN(network.AP_IF)
@@ -123,7 +170,6 @@ def start_ap_portal(cfg, display=None):
     ip_shown = False
 
     while True:
-        # ۲. به محض اتصال گوشی به وای‌فای، IP فشرده رسم می‌شود
         if (not ip_shown) and display:
             try:
                 st = ap.status('stations')
@@ -173,12 +219,16 @@ def start_ap_portal(cfg, display=None):
                 cfg['brightness'] = int(form.get('brightness', 2))
                 cfg['fetch_interval'] = int(form.get('fetch_interval', 120))
                 
-                for key in ('show_date', 'show_usdt', 'show_gold', 'show_btc', 'show_oil', 'show_weather'):
+                # تیک‌های عمومی
+                for key in ('show_date', 'show_weather', 'show_oil'):
                     cfg[key] = key in form
+                
+                # ذخیره تیک‌های ۳۳ قلم بازار
+                for cfg_key, _, _ in MARKET_FIELDS:
+                    cfg[cfg_key] = cfg_key in form
                     
                 save_config(cfg)
                 
-                # نمایش پیام ذخیره روی ماتریس قبل از ریست
                 if display:
                     display.fill(0)
                     display.text("SAVED", 12, 0, 1)
@@ -198,3 +248,4 @@ def start_ap_portal(cfg, display=None):
             print("Request handling error:", e)
             try: cl.close()
             except: pass
+
