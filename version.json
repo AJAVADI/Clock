@@ -1,6 +1,12 @@
 {
-  "version": 1.3,
+  "version": 2.0,
   "files": [
-    "main.py"
+    "main.py",
+    "api_data.py",
+    "web_server.py",
+    "network_time.py",
+    "fc16.py",
+    "config.py",
+    "ota.py"
   ]
 }
