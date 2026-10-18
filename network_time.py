@@ -51,7 +51,7 @@ def connect_wifi(ssid, password, show_status=None, timeout=15, device_name="AiCl
 
 def sync_ntp(show_status_cb=None):
     if show_status_cb:
-        show_status_cb("NTP")
+        show_status_cb("Internet")
     try:
         ntptime.host = 'pool.ntp.org'
         ntptime.settime()
@@ -83,3 +83,4 @@ def gregorian_to_jalali(gy, gm, gd):
         jm = 7 + ((days - 186) // 30)
         jd = 1 + ((days - 186) % 30)
     return jy, jm, jd
+
