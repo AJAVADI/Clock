@@ -119,3 +119,4 @@ def check_and_update(cfg, display=None):
         display.show()
     
     machine.reset()
+
