@@ -13,7 +13,7 @@ from api_data import fetch_weather, fetch_oil, fetch_market_data, ITEM_LABELS
 import web_server
 import ota
 
-print(">>> UPDATE SUCCESSFUL! V1.2 RUNNING <<<")
+#print(">>> UPDATE SUCCESSFUL! V1.2 RUNNING <<<")
 
 cfg = load_config()
 
