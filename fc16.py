@@ -27,3 +27,4 @@ class FC16Matrix:
                     if self.fb.pixel(m*8+col,7-row): col_data |= 1 << col
                 self.spi.write(bytearray([row+1,col_data]))
             self.cs(1)
+
