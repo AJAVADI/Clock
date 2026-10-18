@@ -13,7 +13,7 @@ MARKET_FIELDS = [
     ("m_btc", "btc", "بیت‌کوین (BTC)"),
     ("m_eth", "eth", "اتریوم (ETH)"),
     ("m_bnb", "bnb", "بایننس کوین (BNB)"),
-    ("m_sol", "sol", "سولانا (SOL)"), # در صورت نیاز
+    ("m_sol", "sol", "سولانا (SOL)"),
     ("m_doge", "doge", "دوج‌کوین (DOGE)"),
     ("m_shib", "shib", "شیبا (SHIB)"),
     ("m_ton", "ton", "تون‌کوین (TON)"),
@@ -69,7 +69,6 @@ def parse_form_data(body):
 def render_html(cfg):
     checked = lambda val: 'checked' if val else ''
     
-    # ساخت ردیف چک‌باکس‌های بازار
     market_items_html = ""
     for cfg_key, _, label in MARKET_FIELDS:
         market_items_html += f'''
@@ -94,7 +93,7 @@ def render_html(cfg):
     input[type="checkbox"] {{transform:scale(1.25);cursor:pointer;accent-color:#38bdf8}}
     .btn {{width:100%;padding:12px;background:#0284c7;border:0;border-radius:8px;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;margin-top:20px}}
     .desc {{font-size:12px;color:#94a3b8;text-align:center;margin-top:12px}}
-</style></head><body><div class="card"><h2>تنظیمات ساعت هوشمند</h2><form method="POST" action="/save">
+</style></head><body><div class="card"><h2>تنظیمات ساعت هوشمند</h2><form method="POST">
 <div class="group"><label>نام وای‌فای (SSID):</label><input type="text" name="wifi_ssid" value="{cfg.get('wifi_ssid','')}" required dir="ltr"></div>
 <div class="group"><label>رمز وای‌فای (Password):</label><input type="password" name="wifi_pass" value="{cfg.get('wifi_pass','')}" dir="ltr"></div>
 <div class="group"><label>شدت نور ماتریس (0 تا 15):</label><input type="number" name="brightness" min="0" max="15" value="{cfg.get('brightness',2)}"></div>
@@ -144,6 +143,20 @@ def draw_compact_ip(display, ip_str):
             x += 4
     display.show()
 
+def handle_dns_request(dns_sock, ip_bytes):
+    try:
+        data, addr = dns_sock.recvfrom(256)
+        if data:
+            packet = data[:2] + b'\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00'
+            idx = 12
+            while data[idx] != 0:
+                idx += 1 + data[idx]
+            idx += 5
+            packet += data[12:idx] + b'\xc0\x0c\x00\x01\x00\x01\x00\x00\x00\x3c\x00\x04' + ip_bytes
+            dns_sock.sendto(packet, addr)
+    except OSError:
+        pass
+
 def start_ap_portal(cfg, display=None):
     ssid = 'Ai Clock'
     if display:
@@ -159,7 +172,14 @@ def start_ap_portal(cfg, display=None):
     sta.active(False)
     time.sleep(.5)
 
-    print('AP Mode Started: Clock (Open) - IP: 192.168.4.1')
+    ap_ip = ap.ifconfig()[0]
+    ip_bytes = bytes([int(x) for x in ap_ip.split('.')])
+    print(f'AP Mode Started: Clock (Open) - IP: {ap_ip}')
+
+    dns_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    dns_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    dns_sock.bind(('', 53))
+    dns_sock.setblocking(False)
 
     s = socket.socket()
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -170,11 +190,13 @@ def start_ap_portal(cfg, display=None):
     ip_shown = False
 
     while True:
+        handle_dns_request(dns_sock, ip_bytes)
+
         if (not ip_shown) and display:
             try:
                 st = ap.status('stations')
                 if st and len(st) > 0:
-                    draw_compact_ip(display, ap.ifconfig()[0])
+                    draw_compact_ip(display, ap_ip)
                     ip_shown = True
             except Exception as e:
                 print("Status check error:", e)
@@ -182,7 +204,7 @@ def start_ap_portal(cfg, display=None):
         try:
             cl, addr = s.accept()
         except OSError:
-            time.sleep_ms(80)
+            time.sleep_ms(20)
             continue
 
         try:
@@ -198,7 +220,7 @@ def start_ap_portal(cfg, display=None):
             lines = req_str.split('\r\n')
             first_line = lines[0] if lines else ''
 
-            if 'POST /save' in first_line:
+            if first_line.startswith('POST'):
                 content_len = 0
                 for line in lines:
                     if line.lower().startswith('content-length:'):
@@ -219,11 +241,9 @@ def start_ap_portal(cfg, display=None):
                 cfg['brightness'] = int(form.get('brightness', 2))
                 cfg['fetch_interval'] = int(form.get('fetch_interval', 120))
                 
-                # تیک‌های عمومی
                 for key in ('show_date', 'show_weather', 'show_oil'):
                     cfg[key] = key in form
                 
-                # ذخیره تیک‌های ۳۳ قلم بازار
                 for cfg_key, _, _ in MARKET_FIELDS:
                     cfg[cfg_key] = cfg_key in form
                     
@@ -234,18 +254,36 @@ def start_ap_portal(cfg, display=None):
                     display.text("SAVED", 12, 0, 1)
                     display.show()
 
-                resp = 'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<html lang="fa" dir="rtl"><body><h2>تنظیمات با موفقیت ذخیره شد!</h2><p>برد تا چند ثانیه دیگر ریستارت می‌شود...</p></body></html>'
+                resp = 'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nConnection: close\r\n\r\n<html lang="fa" dir="rtl"><body><h2>تنظیمات با موفقیت ذخیره شد!</h2><p>برد تا چند ثانیه دیگر ریستارت می‌شود...</p></body></html>'
                 cl.send(resp.encode('utf-8'))
                 cl.close()
                 time.sleep(1.5)
                 machine.reset()
             else:
-                html = render_html(cfg)
-                resp = 'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: ' + str(len(html.encode('utf-8'))) + '\r\n\r\n' + html
-                cl.send(resp.encode('utf-8'))
-                cl.close()
+                req_parts = first_line.split()
+                path = req_parts[1] if len(req_parts) > 1 else '/'
+                host = ''
+                for line in lines:
+                    if line.lower().startswith('host:'):
+                        host = line.split(':', 1)[1].strip()
+                        break
+
+                probe_paths = ('/generate_204', '/gen_204', '/hotspot-detect.html', '/canonical.html', '/connecttest.txt', '/ncsi.txt', '/save')
+                is_probe = path in probe_paths
+                is_foreign_host = host and not host.startswith(ap_ip)
+
+                # هدایت تمام درخواست‌های جانبی و مسیر قدیمی /save به ریشه
+                if is_probe or (is_foreign_host and path != '/'):
+                    redirect_resp = f'HTTP/1.1 302 Found\r\nLocation: http://{ap_ip}/\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'
+                    cl.send(redirect_resp.encode('utf-8'))
+                    cl.close()
+                else:
+                    html = render_html(cfg)
+                    resp = 'HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: ' + str(len(html.encode('utf-8'))) + '\r\nConnection: close\r\n\r\n' + html
+                    cl.send(resp.encode('utf-8'))
+                    cl.close()
         except Exception as e:
             print("Request handling error:", e)
             try: cl.close()
             except: pass
-
+ 
